@@ -435,19 +435,35 @@ def _get_entity_dims(op) -> frozenset[str]:
     return frozenset()
 
 
+def _has_measure_fields(op) -> bool:
+    """Return whether an op defines base or calculated measures."""
+    from .ops import SemanticTableOp
+
+    if isinstance(op, SemanticTableOp):
+        return bool(op.get_measures()) or bool(op.get_calculated_measures())
+    return False
+
+
 def _detect_grain_cardinality(left_op, right_op) -> str:
     """Compare entity dimensions to detect grain mismatch.
 
     If both sides declare ``is_entity`` dimensions and the sets differ,
-    returns ``"many"`` so BSL's pre-aggregation logic aligns the grains.
-    Otherwise returns ``"one"`` (standard join_one behaviour).
+    returns ``"many"`` only for multi-fact joins where both sides define
+    measures. Pure dimension lookups should stay ``join_one`` so they can
+    use deferred dimension joins.
     """
     import warnings
 
     left_entities = _get_entity_dims(left_op)
     right_entities = _get_entity_dims(right_op)
 
-    if left_entities and right_entities and left_entities != right_entities:
+    if (
+        left_entities
+        and right_entities
+        and left_entities != right_entities
+        and _has_measure_fields(left_op)
+        and _has_measure_fields(right_op)
+    ):
         left_name = getattr(left_op, "name", None) or "left"
         right_name = getattr(right_op, "name", None) or "right"
         warnings.warn(
