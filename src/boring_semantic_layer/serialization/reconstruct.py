@@ -261,6 +261,7 @@ def _reconstruct_join(
     right_model = reconstruct_bsl_operation(right_metadata, right_xorq_expr, context)
 
     how = metadata.get("how", "inner")
+    cardinality = metadata.get("cardinality", "many")
     on_struct = metadata.get("on_struct")
 
     if on_struct is None:
@@ -269,9 +270,12 @@ def _reconstruct_join(
             right=right_model.op() if hasattr(right_model, "op") else right_model,
             on=None,
             how=how,
+            cardinality=cardinality,
         )
 
     predicate = context.deserialize_join_predicate(on_struct)
+    if cardinality == "one":
+        return left_model.join_one(right_model, on=predicate, how=how)
     return left_model.join_many(right_model, on=predicate, how=how)
 
 
